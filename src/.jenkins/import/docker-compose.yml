@@ -1,0 +1,42 @@
+version: "3.0"
+services:
+  database:
+    image: build.datapunt.amsterdam.nl:5000/atlas/postgres
+    ports:
+      - "5404:5432"
+    environment:
+      POSTGRES_DB: funderingen
+      POSTGRES_USER: funderingen
+      POSTGRES_PASSWORD: insecure
+
+  importer:
+    image: build.datapunt.amsterdam.nl:5000/datapunt/funderingen:${ENVIRONMENT}
+    links:
+      - database
+    environment:
+      FUNDERINGEN_OBJECTSTORE_PASSWORD: ${FUNDERINGEN_OBJECTSTORE_PASSWORD}
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_NAME: funderingen
+      DATABASE_USER: funderingen
+      DATABASE_PASSWORD: insecure
+    command: >
+      bash -c "/app/import/docker-wait.sh && \
+               /app/import/docker-migrate.sh && \
+               /app/import/import.sh"
+
+  db-backup:
+    image: build.datapunt.amsterdam.nl:5000/atlas/postgres
+    links:
+      - database
+    volumes:
+      - ./backups:/tmp/backups
+    command: >
+      bash -c "echo database:5432:funderingen:funderingen:insecure > ~/.pgpass \
+              && chmod 600 ~/.pgpass \
+              && pg_dump --clean \
+                         -Fc \
+                         -t FILL_IN_TABLE_NAME \
+                         -U funderingen \
+                         -h database -p 5432 \
+                         funderingen > /tmp/backups/database.dump"
